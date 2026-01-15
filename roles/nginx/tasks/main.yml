@@ -1,0 +1,171 @@
+---
+# =============================
+# Nginx
+# =============================
+
+- name: Install nginx
+  become: yes
+  yum:
+    name: nginx
+    state: present
+
+# 🔥 nginx 메인 설정 (가장 중요)
+- name: Deploy nginx main config
+  become: yes
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+- name: Enable and start nginx
+  become: yes
+  systemd:
+    name: nginx
+    enabled: yes
+    state: started
+
+
+# =============================
+# WebSocket map (http 레벨)
+# =============================
+
+- name: Create nginx maps directory
+  become: yes
+  file:
+    path: /etc/nginx/maps
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy nginx websocket map
+  become: yes
+  template:
+    src: websocket.map.j2
+    dest: /etc/nginx/maps/websocket.map.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+
+# =============================
+# Web Root Directory
+# =============================
+
+- name: Ensure web root directory exists
+  become: yes
+  file:
+    path: /usr/share/nginx/html
+    state: directory
+    owner: nginx
+    group: nginx
+    mode: "0755"
+
+
+# =============================
+# Auth Server Reverse Proxy
+# =============================
+
+- name: Deploy FastAPI reverse proxy config (auth.justic.store)
+  become: yes
+  template:
+    src: fastapi.conf.j2
+    dest: /etc/nginx/conf.d/fastapi.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+
+# =============================
+# Web Server (justic.store)
+# =============================
+
+- name: Deploy web nginx config (justic.store)
+  become: yes
+  template:
+    src: web.conf.j2
+    dest: /etc/nginx/conf.d/web.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+
+# =============================
+# MinIO Reverse Proxy (WebSocket 사용)
+# =============================
+
+- name: Deploy MinIO nginx config
+  become: yes
+  template:
+    src: minio.conf.j2
+    dest: /etc/nginx/conf.d/minio.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: reload nginx
+
+
+# =============================
+# Deploy Web Static Files
+# =============================
+
+- name: Deploy web html files
+  become: yes
+  copy:
+    src: .
+    dest: /usr/share/nginx/html/
+    owner: nginx
+    group: nginx
+    mode: "0644"
+
+- name: Deploy web css directory
+  become: yes
+  copy:
+    src: css/
+    dest: /usr/share/nginx/html/css/
+    owner: nginx
+    group: nginx
+    mode: "0755"
+
+- name: Deploy favicon.ico
+  become: yes
+  copy:
+    src: favicon.ico
+    dest: /usr/share/nginx/html/favicon.ico
+    owner: nginx
+    group: nginx
+    mode: "0644"
+
+
+# =============================
+# Keepalived
+# =============================
+
+- name: Install keepalived
+  become: yes
+  yum:
+    name: keepalived
+    state: present
+
+- name: Deploy keepalived config
+  become: yes
+  template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart keepalived
+
+- name: Enable and start keepalived
+  become: yes
+  systemd:
+    name: keepalived
+    enabled: yes
+    state: started

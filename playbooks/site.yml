@@ -1,0 +1,17 @@
+# 3. Redis (상태 저장소)
+- hosts: redis
+  become: yes
+  roles:
+    - redis
+
+# 4. WAS (FastAPI)
+- hosts: was
+  become: yes
+  roles:
+    - was
+
+# 5. Nginx (Load Balancer)
+- hosts: nginx
+  become: yes
+  roles:
+    - nginx

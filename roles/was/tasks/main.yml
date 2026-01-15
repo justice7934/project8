@@ -1,0 +1,153 @@
+---
+# roles/was/tasks/main.yml
+
+# ============================================
+# Enable EPEL (필수 유틸용)
+# ============================================
+
+- name: Enable EPEL repository
+  yum:
+    name: epel-release
+    state: present
+
+
+# ============================================
+# Install base system packages (❌ ffmpeg 제외)
+# ============================================
+
+- name: Install system packages (Python, Redis client, PostgreSQL client)
+  yum:
+    name:
+      - python3
+      - python3-pip
+      - redis              # redis-cli (OAuth state / session 검증용)
+      - postgresql         # psql client (DB 연결 검증용)
+      - tar
+      - xz
+    state: present
+
+
+# ============================================
+# Install ffmpeg (Static Binary 방식 ⭐ 핵심)
+# ============================================
+
+- name: Download ffmpeg static binary
+  get_url:
+    url: https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+    dest: /tmp/ffmpeg.tar.xz
+    mode: '0644'
+
+- name: Extract ffmpeg archive
+  unarchive:
+    src: /tmp/ffmpeg.tar.xz
+    dest: /opt
+    remote_src: yes
+
+- name: Install ffmpeg binary
+  shell: |
+    cp /opt/ffmpeg-*-static/ffmpeg /usr/local/bin/ffmpeg
+    chmod +x /usr/local/bin/ffmpeg
+  args:
+    creates: /usr/local/bin/ffmpeg
+
+
+# ============================================
+# WAS application directories
+# ============================================
+
+- name: Create WAS base directory
+  file:
+    path: /opt/was
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0755'
+
+- name: Create WAS app directory
+  file:
+    path: /opt/was/app
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0755'
+
+
+# ============================================
+# Deploy WAS application
+# ============================================
+
+- name: Copy WAS application files
+  copy:
+    src: app/
+    dest: /opt/was/app/
+    owner: ansible
+    group: ansible
+  notify: restart was
+
+- name: Create Python virtualenv
+  command: python3 -m venv /opt/was/venv
+  args:
+    creates: /opt/was/venv/bin/activate
+
+- name: Install Python dependencies
+  pip:
+    requirements: /opt/was/app/requirements.txt
+    virtualenv: /opt/was/venv
+    virtualenv_python: python3
+
+
+# ============================================
+# Environment & systemd
+# ============================================
+
+- name: Copy WAS environment file
+  copy:
+    src: was.env
+    dest: /etc/was.env
+    owner: root
+    group: root
+    mode: '0600'
+  notify: restart was
+
+- name: Install WAS systemd service
+  template:
+    src: was.service.j2
+    dest: /etc/systemd/system/was.service
+  notify:
+    - reload systemd
+    - restart was
+
+- name: Enable and start WAS service
+  systemd:
+    name: was
+    enabled: yes
+    state: started
+
+
+# ============================================
+# Video storage directories (Veo)
+# ============================================
+
+- name: Create video base directory
+  file:
+    path: /var/lib/veo
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0755'
+
+- name: Create video storage directory
+  file:
+    path: /var/lib/veo/videos
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0755'
+
+- name: Create thumbnail storage directory
+  file:
+    path: /var/lib/veo/thumbs
+    state: directory
+    owner: ansible
+    group: ansible
+    mode: '0755'
